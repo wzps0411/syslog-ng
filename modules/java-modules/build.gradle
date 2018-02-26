@@ -16,7 +16,7 @@ subprojects {
         }
       mavenCentral()
       maven {
-        url "http://maven.elasticsearch.org/releases"
+        url "http://maven.atlassian.com/3rdparty/"
       }
     }
 
