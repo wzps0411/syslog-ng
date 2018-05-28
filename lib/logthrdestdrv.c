@@ -37,6 +37,21 @@ log_threaded_dest_driver_set_max_retries(LogDriver *s, gint max_retries)
   self->retries.max = max_retries;
 }
 
+/* this should be used in combination with WORKER_INSERT_RESULT_EXPLICIT_ACK_MGMT to actually confirm message delivery. */
+void
+log_threaded_dest_driver_ack_messages(LogThreadedDestDriver *self, gint batch_size)
+{
+  log_queue_ack_backlog(self->worker.queue, batch_size);
+  self->batch_size -= batch_size;
+}
+
+void
+log_threaded_dest_driver_rewind_messages(LogThreadedDestDriver *self, gint batch_size)
+{
+  log_queue_rewind_backlog(self->worker.queue, batch_size);
+  self->batch_size -= batch_size;
+}
+
 static gchar *
 _format_seqnum_persist_name(LogThreadedDestDriver *self)
 {
@@ -148,30 +163,45 @@ _disconnect_and_suspend(LogThreadedDestDriver *self)
   _suspend(self);
 }
 
-/* NOTE: runs in the worker thread */
+/* Accepts the current batch including the current message by acking it back
+ * to the source.
+ *
+ * NOTE: runs in the worker thread */
 void
-_accept_message(LogThreadedDestDriver *self, LogMessage *msg)
+_accept_batch_and_message(LogThreadedDestDriver *self, LogMessage *msg)
 {
   self->retries.counter = 0;
   step_sequence_number(&self->seq_num);
-  log_queue_ack_backlog(self->worker.queue, 1);
+  log_queue_ack_backlog(self->worker.queue, self->batch_size);
+  log_msg_unref(msg);
+  self->batch_size = 0;
+}
+
+/* Put the message on the backlog by increasing batch_size.  It will be
+ * acknowledged by the next _accept_message(), rewound by the next
+ * _rewind_message() or dropped by the next _drop_message() */
+void
+_queue_message_into_batch(LogThreadedDestDriver *self, LogMessage *msg)
+{
+  step_sequence_number(&self->seq_num);
   log_msg_unref(msg);
 }
 
 /* NOTE: runs in the worker thread */
 void
-_drop_message(LogThreadedDestDriver *self, LogMessage *msg)
+_drop_batch_and_message(LogThreadedDestDriver *self, LogMessage *msg)
 {
-  stats_counter_inc(self->dropped_messages);
-  _accept_message(self, msg);
+  stats_counter_add(self->dropped_messages, self->batch_size);
+  _accept_batch_and_message(self, msg);
 }
 
 /* NOTE: runs in the worker thread */
 void
-_rewind_message(LogThreadedDestDriver *self, LogMessage *msg)
+_rewind_batch_and_message(LogThreadedDestDriver *self, LogMessage *msg)
 {
-  log_queue_rewind_backlog(self->worker.queue, 1);
+  log_queue_rewind_backlog(self->worker.queue, self->batch_size);
   log_msg_unref(msg);
+  self->batch_size = 0;
 }
 
 /* NOTE: runs in the worker thread, whenever items on our queue are
@@ -196,13 +226,15 @@ _perform_inserts(LogThreadedDestDriver *self)
       result = self->worker.insert(self, msg);
       scratch_buffers_reclaim_marked(mark);
 
+      self->batch_size++;
       switch (result)
         {
         case WORKER_INSERT_RESULT_DROP:
-          msg_error("Message dropped while sending message to destination",
-                    evt_tag_str("driver", self->super.super.id));
+          msg_error("Message(s) dropped while sending message to destination",
+                    evt_tag_str("driver", self->super.super.id),
+                    evt_tag_int("batch_size", self->batch_size));
 
-          _drop_message(self, msg);
+          _drop_batch_and_message(self, msg);
           _disconnect_and_suspend(self);
           break;
 
@@ -214,29 +246,40 @@ _perform_inserts(LogThreadedDestDriver *self)
               if (self->messages.retry_over)
                 self->messages.retry_over(self, msg);
 
-              msg_error("Multiple failures while sending message to destination, message dropped",
+              msg_error("Multiple failures while sending message(s) to destination, message(s) dropped",
                         evt_tag_str("driver", self->super.super.id),
-                        evt_tag_int("number_of_retries", self->retries.max));
+                        evt_tag_int("number_of_retries", self->retries.max),
+                        evt_tag_int("batch_size", self->batch_size));
 
-              _drop_message(self, msg);
+              _drop_batch_and_message(self, msg);
             }
           else
             {
-              _rewind_message(self, msg);
+              _rewind_batch_and_message(self, msg);
               _disconnect_and_suspend(self);
             }
           break;
 
         case WORKER_INSERT_RESULT_NOT_CONNECTED:
-          _rewind_message(self, msg);
+          msg_debug("Server disconnected while preparing messages for sending, trying again",
+                    evt_tag_str("driver", self->super.super.id),
+                    evt_tag_int("batch_size", self->batch_size));
+          _rewind_batch_and_message(self, msg);
           _disconnect_and_suspend(self);
           break;
 
+        case WORKER_INSERT_RESULT_EXPLICIT_ACK_MGMT:
+          /* we require the instance to use explicit calls to ack_messages/rewind_messages */
+          log_msg_unref(msg);
           break;
 
         case WORKER_INSERT_RESULT_SUCCESS:
           stats_counter_inc(self->written_messages);
-          _accept_message(self, msg);
+          _accept_batch_and_message(self, msg);
+          break;
+
+        case WORKER_INSERT_RESULT_QUEUED:
+          _queue_message_into_batch(self, msg);
           break;
 
         default:
@@ -250,6 +293,7 @@ _perform_inserts(LogThreadedDestDriver *self)
     {
       if (self->worker.worker_message_queue_empty)
         {
+          /* FIXME: error handling */
           self->worker.worker_message_queue_empty(self);
         }
     }
@@ -545,6 +589,7 @@ log_threaded_dest_driver_init_instance(LogThreadedDestDriver *self, GlobalConfig
   self->super.super.super.queue = log_threaded_dest_driver_queue;
   self->super.super.super.free_fn = log_threaded_dest_driver_free;
   self->time_reopen = -1;
+  self->batch_size = 0;
 
   self->retries.max = MAX_RETRIES_OF_FAILED_INSERT_DEFAULT;
 }
