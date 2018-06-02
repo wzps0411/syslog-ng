@@ -344,6 +344,11 @@ _setup_static_options_in_curl(HTTPDestinationDriver *self)
   curl_easy_setopt(self->curl, CURLOPT_DEBUGFUNCTION, _curl_debug_function);
   curl_easy_setopt(self->curl, CURLOPT_VERBOSE, (long) (debug_flag || trace_flag));
 
+  curl_easy_setopt(self->curl, CURLOPT_FOLLOWLOCATION, 1);
+  curl_easy_setopt(self->curl, CURLOPT_POSTREDIR, CURL_REDIR_POST_ALL);
+  curl_easy_setopt(self->curl, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+  curl_easy_setopt(self->curl, CURLOPT_MAXREDIRS, 3);
+
   curl_easy_setopt(self->curl, CURLOPT_TIMEOUT, self->timeout);
 
   if (self->method_type == METHOD_TYPE_PUT)
