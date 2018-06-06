@@ -1079,6 +1079,9 @@ afsql_dd_init(LogPipe *s)
   if (!log_threaded_dest_driver_init_method(s))
     return FALSE;
 
+  if (!_initialize_dbi())
+    return FALSE;
+
   if (!self->columns || !self->values)
     {
       msg_error("Default columns and values must be specified for database destinations",
@@ -1092,17 +1095,13 @@ afsql_dd_init(LogPipe *s)
                   evt_tag_str("type", self->type));
     }
 
+  if (self->flush_lines == -1)
+    self->flush_lines = cfg->flush_lines;
+
   if (!_init_fields_from_columns_and_values(self))
     return FALSE;
 
   log_template_options_init(&self->template_options, cfg);
-
-  if (self->flush_lines == -1)
-    self->flush_lines = cfg->flush_lines;
-
-  if (!_initialize_dbi())
-    return FALSE;
-
 
   return TRUE;
 }
