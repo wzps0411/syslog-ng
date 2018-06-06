@@ -882,6 +882,9 @@ afsql_dd_flush(LogThreadedDestDriver *s)
 {
   AFSqlDestDriver *self = (AFSqlDestDriver *) s;
 
+  if (!afsql_dd_is_transaction_handling_enabled(self))
+    return WORKER_INSERT_RESULT_SUCCESS;
+
   if (!afsql_dd_commit_transaction(self))
     {
       /* Assuming that in case of error, the queue is rewound by afsql_dd_commit_transaction() */
