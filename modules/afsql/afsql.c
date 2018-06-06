@@ -1085,9 +1085,6 @@ afsql_dd_init(LogPipe *s)
   AFSqlDestDriver *self = (AFSqlDestDriver *) s;
   GlobalConfig *cfg = log_pipe_get_config(s);
 
-  if (!log_threaded_dest_driver_init_method(s))
-    return FALSE;
-
   if (!_initialize_dbi())
     return FALSE;
 
@@ -1112,7 +1109,7 @@ afsql_dd_init(LogPipe *s)
 
   log_template_options_init(&self->template_options, cfg);
 
-  return TRUE;
+  return log_threaded_dest_driver_init_method(s);
 }
 
 static void
