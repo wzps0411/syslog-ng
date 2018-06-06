@@ -94,10 +94,6 @@ typedef struct _AFSqlDestDriver
 
   LogTemplateOptions template_options;
 
-  StatsCounterItem *dropped_messages;
-  StatsCounterItem *queued_messages;
-  StatsCounterItem *memory_usage;
-
   GHashTable *dbd_options;
   GHashTable *dbd_options_numeric;
 
