@@ -395,10 +395,18 @@ _format_request_headers(HTTPDestinationDriver *self, LogMessage *msg)
        * backward compatibility when batching was introduced, however I think
        * this should eventually be removed */
 
-      headers = _add_header(headers, "X-Syslog-Host", log_msg_get_value(msg, LM_V_HOST, NULL));
-      headers = _add_header(headers, "X-Syslog-Program", log_msg_get_value(msg, LM_V_PROGRAM, NULL));
-      headers = _add_header(headers, "X-Syslog-Facility", syslog_name_lookup_name_by_value(msg->pri & LOG_FACMASK, sl_facilities));
-      headers = _add_header(headers, "X-Syslog-Level", syslog_name_lookup_name_by_value(msg->pri & LOG_PRIMASK, sl_levels));
+      headers = _add_header(headers,
+                            "X-Syslog-Host",
+                            log_msg_get_value(msg, LM_V_HOST, NULL));
+      headers = _add_header(headers,
+                            "X-Syslog-Program",
+                            log_msg_get_value(msg, LM_V_PROGRAM, NULL));
+      headers = _add_header(headers,
+                            "X-Syslog-Facility",
+                            syslog_name_lookup_name_by_value(msg->pri & LOG_FACMASK, sl_facilities));
+      headers = _add_header(headers,
+                            "X-Syslog-Level",
+                            syslog_name_lookup_name_by_value(msg->pri & LOG_PRIMASK, sl_levels));
     }
 
   for (l = self->headers; l; l = l->next)
