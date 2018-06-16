@@ -13,3 +13,5 @@ modules_confgen_libconfgen_la_DEPENDENCIES	=	\
 
 modules/confgen modules/confgen/ mod-confgen: modules/confgen/libconfgen.la
 .PHONY: modules/confgen/ mod-confgen
+
+include modules/confgen/tests/Makefile.am
