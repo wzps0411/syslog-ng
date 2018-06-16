@@ -985,11 +985,18 @@ relex:
   else if (tok == LL_PRAGMA)
     {
       gpointer dummy;
+      CfgIncludeLevel *level = &self->include_stack[self->include_depth];
 
       if (self->preprocess_output)
         g_string_append_printf(self->preprocess_output, "@");
+
+      gint saved_line = level->lloc.first_line;
+      gint saved_column = level->lloc.first_column;
+
       if (!cfg_parser_parse(&pragma_parser, self, &dummy, NULL))
         {
+          level->lloc.first_line = saved_line;
+          level->lloc.first_column = saved_column;
           return LL_ERROR;
         }
       goto relex;
