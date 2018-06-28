@@ -613,11 +613,18 @@ cfg_tree_new_mpx(CfgTree *self, LogExprNode *related_expr)
 gchar *
 cfg_tree_get_rule_name(CfgTree *self, gint content, LogExprNode *node)
 {
-  LogExprNode *rule = log_expr_node_get_container_rule(node, content);
+  gchar *rule_name;
 
-  if (!rule->name)
-    rule->name = g_strdup_printf("#anon-%s%d", log_expr_node_get_content_name(content), self->anon_counters[content]++);
-  return g_strdup(rule->name);
+  rule_name = g_strdup_printf("#anon-%s%d", log_expr_node_get_content_name(content), self->anon_counters[content]++);
+
+  if (node)
+    {
+      LogExprNode *rule = log_expr_node_get_container_rule(node, content);
+      if (!rule->name)
+        rule->name = g_strdup(rule_name);
+    }
+
+  return rule_name;
 }
 
 /*
@@ -629,11 +636,18 @@ cfg_tree_get_rule_name(CfgTree *self, gint content, LogExprNode *node)
 gchar *
 cfg_tree_get_child_id(CfgTree *self, gint content, LogExprNode *node)
 {
-  LogExprNode *rule = log_expr_node_get_container_rule(node, content);
   gchar *rule_name = cfg_tree_get_rule_name(self, content, node);
+  gint cur_child_id;
   gchar *res;
 
-  res = g_strdup_printf("%s#%d", rule_name, rule->child_id++);
+  if (node)
+    {
+      LogExprNode *rule = log_expr_node_get_container_rule(node, content);
+      cur_child_id = rule->child_id++;
+    }
+  else
+    cur_child_id = 0;
+  res = g_strdup_printf("%s#%d", rule_name, cur_child_id);
   g_free(rule_name);
   return res;
 }
