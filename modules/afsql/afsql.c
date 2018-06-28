@@ -1144,7 +1144,7 @@ afsql_dd_start_thread(AFSqlDestDriver *self)
 }
 
 
-static gchar *
+static const gchar *
 afsql_dd_format_stats_instance(AFSqlDestDriver *self)
 {
   static gchar persist_name[64];
