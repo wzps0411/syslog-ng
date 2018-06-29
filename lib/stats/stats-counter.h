@@ -77,7 +77,7 @@ stats_counter_get(StatsCounterItem *counter)
   gssize result = 0;
 
   if (counter)
-    result = counter->value;
+    result = (gsize) g_atomic_pointer_get(&counter->value);
   return result;
 }
 
